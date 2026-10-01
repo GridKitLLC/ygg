@@ -363,3 +363,84 @@ func TestCreateChecksOutExistingBranch(t *testing.T) {
 		t.Errorf("wt.Base = %q, want empty for existing-branch checkout", wt.Base)
 	}
 }
+
+// pushFeatureFromOther pushes a "feature" branch (one commit past origin/main)
+// to origin from a separate clone, simulating a branch created on another
+// machine or by a teammate. It returns the pushed feature tip.
+func pushFeatureFromOther(t *testing.T, localDir string) string {
+	t.Helper()
+	originDir := gitOut(t, localDir, "remote", "get-url", "origin")
+	otherDir := filepath.Join(t.TempDir(), "other-feature")
+
+	runGit(t, filepath.Dir(otherDir), "clone", "-q", originDir, otherDir)
+	runGit(t, otherDir, "config", "user.email", "other@test.com")
+	runGit(t, otherDir, "config", "user.name", "Other")
+	runGit(t, otherDir, "checkout", "-q", "-b", "feature")
+	runGit(t, otherDir, "commit", "-q", "--allow-empty", "-m", "remote feature commit")
+	runGit(t, otherDir, "push", "-q", "origin", "feature")
+	return gitOut(t, otherDir, "rev-parse", "HEAD")
+}
+
+// TestCreateChecksOutRemoteBranch verifies that when origin/<name> exists but
+// no local <name> branch does, Create checks out the remote branch (tracking
+// it) instead of creating a fresh branch off the default branch.
+func TestCreateChecksOutRemoteBranch(t *testing.T) {
+	localDir, _, _ := setupRepoWithStaleMain(t)
+	remoteTip := pushFeatureFromOther(t, localDir)
+
+	wm, err := NewManager(localDir)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
+	if err := wm.Fetch(); err != nil {
+		t.Fatalf("Fetch failed: %v", err)
+	}
+
+	wt, err := wm.Create("feature")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	if head := gitOut(t, wt.Path, "rev-parse", "HEAD"); head != remoteTip {
+		t.Errorf("worktree HEAD = %s, want origin/feature %s", head, remoteTip)
+	}
+	if wt.Base != "origin/feature" {
+		t.Errorf("wt.Base = %q, want %q", wt.Base, "origin/feature")
+	}
+	if up := gitOut(t, localDir, "rev-parse", "--abbrev-ref", "feature@{upstream}"); up != "origin/feature" {
+		t.Errorf("feature upstream = %q, want %q", up, "origin/feature")
+	}
+}
+
+// TestCreatePrefersLocalOverRemoteBranch verifies that an existing local
+// <name> branch is checked out as-is even when origin/<name> also exists.
+func TestCreatePrefersLocalOverRemoteBranch(t *testing.T) {
+	localDir, _, _ := setupRepoWithStaleMain(t)
+	remoteTip := pushFeatureFromOther(t, localDir)
+
+	runGit(t, localDir, "branch", "feature", "main")
+	localTip := gitOut(t, localDir, "rev-parse", "feature")
+	if localTip == remoteTip {
+		t.Fatal("setup error: local and remote feature tips are identical")
+	}
+
+	wm, err := NewManager(localDir)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
+	if err := wm.Fetch(); err != nil {
+		t.Fatalf("Fetch failed: %v", err)
+	}
+
+	wt, err := wm.Create("feature")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	if head := gitOut(t, wt.Path, "rev-parse", "HEAD"); head != localTip {
+		t.Errorf("worktree HEAD = %s, want local feature %s (not origin/feature %s)", head, localTip, remoteTip)
+	}
+	if wt.Base != "" {
+		t.Errorf("wt.Base = %q, want empty for existing-branch checkout", wt.Base)
+	}
+}

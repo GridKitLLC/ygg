@@ -172,7 +172,9 @@ func (m *Manager) HasUncommittedChanges(path string) bool {
 	return len(strings.TrimSpace(string(output))) > 0
 }
 
-// Create creates a new worktree with the given name, based on the default branch.
+// Create creates a new worktree with the given name. It checks out an existing
+// local branch of that name, else origin/<name> (tracking it), else a new
+// branch based on the default branch.
 func (m *Manager) Create(name string) (*Worktree, error) {
 	if err := os.MkdirAll(m.baseDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create worktrees directory: %w", err)
@@ -191,10 +193,16 @@ func (m *Manager) Create(name string) (*Worktree, error) {
 
 	var base string
 	var cmd *exec.Cmd
+	remoteBranch := "refs/remotes/origin/" + name
 	if m.refExists("refs/heads/" + name) {
 		// A branch with this name already exists — check it out into the new
 		// worktree as-is, without re-pointing it at a base ref.
 		cmd = exec.Command("git", "worktree", "add", worktreePath, name)
+	} else if m.refExists(remoteBranch) {
+		// The branch exists on origin only (pushed from another machine or by
+		// a teammate) — create a local branch from it that tracks origin/<name>.
+		base = remoteBranch
+		cmd = exec.Command("git", "worktree", "add", "--track", "-b", name, worktreePath, base)
 	} else {
 		// Base the new branch on the freshly fetched origin/<default> tip when
 		// it is ahead of the local branch (the "forgot to pull" case),

@@ -28,7 +28,7 @@ ygg clean --force    # Clean without confirmation prompts
 
 ## Key Behaviors
 
-- `ygg new` fetches latest from origin, bases the branch on `main`/`master`, and copies untracked files from the main worktree
+- `ygg new` fetches latest from origin, checks out `<name>` if it exists locally or as `origin/<name>` (tracking it), otherwise bases a new branch on `main`/`master`, and copies untracked files from the main worktree
 - Sets `$YGG_WORKTREE` env var inside the shell for prompt integration
 - Herdr is detected via `HERDR_ENV=1`; ygg opens or focuses a native worktree workspace labeled with the full branch name
 - Herdr takes precedence over ygg-shell, tmux, and Zellij; without Herdr, ygg-shell keeps its existing `cd` behavior before tmux/Zellij detection

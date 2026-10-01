@@ -15,9 +15,11 @@ var newCmd = &cobra.Command{
 
 This will:
 1. Fetch the latest changes from origin
-2. Create a new worktree with a branch named <name>, based on the latest
-   origin/<default-branch> (falling back to the local default branch when
-   there is no remote)
+2. Create a new worktree for the branch <name>: an existing local <name>
+   branch is checked out as-is; otherwise origin/<name> is checked out
+   (tracking it) if it exists; otherwise a new branch is created from the
+   latest origin/<default-branch> (falling back to the local default branch
+   when there is no remote)
 3. Open the worktree in the active Herdr/tmux/Zellij workspace manager, or
    enter a subshell when no workspace backend is active
 
@@ -52,15 +54,9 @@ func runNew(cmd *cobra.Command, args []string) error {
 		info("Could not fetch (offline?)")
 	}
 
-	// Detect the default branch (main/master); the worktree is based on the
+	// Create resolves the base: local <name>, else origin/<name>, else the
 	// freshly fetched origin/<default> tip, so no local pull is required.
-	defaultBranch, err := wm.DefaultBranch()
-	if err != nil {
-		errorMsg("Could not detect default branch: %v", err)
-		return err
-	}
-
-	info("Creating worktree: %s (default branch %s)", name, defaultBranch)
+	info("Creating worktree: %s", name)
 
 	wt, err := wm.Create(name)
 	if err != nil {

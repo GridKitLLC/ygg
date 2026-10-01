@@ -38,7 +38,7 @@ ygg new my-feature
 
 This will:
 1. Fetch latest from origin
-2. Create a new worktree with branch `my-feature` based on the default branch
+2. Create a new worktree for branch `my-feature` — checking out an existing local branch, else `origin/my-feature` (tracking it) if it exists on the remote, else a new branch based on the default branch
 3. Open the worktree in the active Herdr/tmux/Zellij workspace manager, or enter a subshell
 
 Worktrees are created at `.worktrees/<feature-name>` inside the repository root.
